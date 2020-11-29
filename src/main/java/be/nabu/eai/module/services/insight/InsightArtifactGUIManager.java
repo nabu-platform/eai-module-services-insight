@@ -124,7 +124,8 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 	
 	private void drawFields(VBox target, InsightArtifact insight) {
 		target.getChildren().clear();
-		for (InsightField field : insight.getConfig().getFields()) {
+		List<InsightField> insightFields = insight.getConfig().getFields();
+		for (InsightField field : insightFields) {
 			ComboBox<String> fields = new ComboBox<String>();
 			// we don't allow you to select the foreign fields, they will always be added and a "group by" will be done on them (for now)
 			fields.getItems().addAll(fields(insight, true));
@@ -174,8 +175,57 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 			
 			row.getChildren().add(fields);
 			
-			HBox.setMargin(aggregate, new Insets(0, 0, 0, 5));
-			HBox.setMargin(fields, new Insets(0, 0, 0, 5));
+			HBox buttons = new HBox();
+			Button remove = new Button();
+			remove.setGraphic(MainController.loadFixedSizeGraphic("icons/delete.png", 12));
+			remove.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+				@Override
+				public void handle(ActionEvent arg0) {
+					insightFields.remove(field);
+					// redraw this section
+					drawFields(target, insight);
+					MainController.getInstance().setChanged();
+				}
+			});
+			Button up = new Button();
+			up.setGraphic(MainController.loadFixedSizeGraphic("move/up.png", 12));
+			up.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+				@Override
+				public void handle(ActionEvent arg0) {
+					int indexOf = insightFields.indexOf(field);
+					if (indexOf > 0) {
+						insightFields.remove(indexOf);
+						insightFields.add(indexOf - 1, field);
+					}
+					// redraw this section
+					drawFields(target, insight);
+					MainController.getInstance().setChanged();
+				}
+			});
+			
+			Button down = new Button();
+			down.setGraphic(MainController.loadFixedSizeGraphic("move/down.png", 12));
+			down.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+				@Override
+				public void handle(ActionEvent arg0) {
+					int indexOf = insightFields.indexOf(field);
+					if (indexOf < insightFields.size() - 1) {
+						insightFields.remove(indexOf);
+						insightFields.add(indexOf + 1, field);
+					}
+					// redraw this section
+					drawFields(target, insight);
+					MainController.getInstance().setChanged();
+				}
+			});
+			
+			buttons.getChildren().addAll(up, down, remove);
+			row.getChildren().add(buttons);
+			
+			HBox.setMargin(aggregate, new Insets(0, 0, 0, 10));
+			HBox.setMargin(fields, new Insets(0, 0, 0, 10));
+			HBox.setMargin(buttons, new Insets(0, 0, 0, 10));
+			VBox.setMargin(row, new Insets(10, 0, 0, 0));
 			
 			target.getChildren().add(row);
 		}
