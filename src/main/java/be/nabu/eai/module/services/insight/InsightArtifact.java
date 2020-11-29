@@ -232,8 +232,8 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 					buildStructure(result, this);
 					String id = getId() + ".results";
 					result.setId(id);
-					result.setName(getConfig().getCoreType().getName());
-					String collectionName = ValueUtils.getValue(CollectionNameProperty.getInstance(), getConfig().getCoreType().getProperties());
+					result.setName(getConfig().getCoreType() == null ? "result" : getConfig().getCoreType().getName());
+					String collectionName = getConfig().getCoreType() == null ? null : ValueUtils.getValue(CollectionNameProperty.getInstance(), getConfig().getCoreType().getProperties());
 					if (collectionName != null) {
 						result.setProperty(new ValueImpl<String>(CollectionNameProperty.getInstance(), collectionName));
 					}

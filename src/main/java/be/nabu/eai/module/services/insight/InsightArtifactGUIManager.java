@@ -4,31 +4,54 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
 
+import be.nabu.eai.api.NamingConvention;
 import be.nabu.eai.developer.MainController;
+import be.nabu.eai.developer.impl.CustomTooltip;
+import be.nabu.eai.developer.managers.base.BaseArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimpleProperty;
 import be.nabu.eai.module.services.crud.CRUDArtifactGUIManager;
 import be.nabu.eai.module.services.crud.CRUDArtifactGUIManager.Redrawer;
 import be.nabu.eai.module.services.crud.CRUDConfiguration.ForeignNameField;
+import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.resources.RepositoryEntry;
+import be.nabu.eai.repository.util.SystemPrincipal;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
+import be.nabu.libs.services.api.ServiceResult;
 import be.nabu.libs.types.TypeUtils;
+import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.api.SimpleType;
+import be.nabu.libs.validator.api.Validation;
+import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
+import javafx.scene.chart.XYChart.Data;
+import javafx.scene.chart.XYChart.Series;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
+import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
@@ -40,6 +63,9 @@ import javafx.scene.layout.VBox;
  * If you import that remote field, you _have_ to group by it?
  */
 public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfiguration, InsightArtifact> {
+
+	private VBox chart;
+	private InsightArtifact instance;
 
 	public InsightArtifactGUIManager() {
 		super("Insight", InsightArtifact.class, new InsightArtifactManager(), InsightConfiguration.class);
@@ -70,9 +96,51 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 	public String getCategory() {
 		return "Services";
 	}
+	
+
+	@Override
+	protected BaseArtifactGUIInstance<InsightArtifact> newGUIInstance(Entry entry) {
+		return new BaseArtifactGUIInstance<InsightArtifact>(this, entry) {
+			@Override
+			public List<Validation<?>> save() throws IOException {
+				List<Validation<?>> save = super.save();
+				MainController.getInstance().submitTask("Redraw chart", "Redrawing chart for " + entry.getId(), new Runnable() {
+					@Override
+					public void run() {
+						Platform.runLater(new Runnable() {
+							@Override
+							public void run() {
+								drawChart(chart, instance);
+							}
+						});
+					}
+				}, 1000);
+				return save;
+			}
+		};
+	}
 
 	@Override
 	protected void display(InsightArtifact instance, Pane pane) {
+		this.instance = instance;
+		SplitPane split = new SplitPane();
+		// give most screen real estate to the settings
+		split.setDividerPositions(0.7);
+		
+		AnchorPane.setBottomAnchor(split, 0d);
+		AnchorPane.setTopAnchor(split, 0d);
+		AnchorPane.setLeftAnchor(split, 0d);
+		AnchorPane.setRightAnchor(split, 0d);
+		
+		ScrollPane left = new ScrollPane();
+		left.setFitToWidth(true);
+		left.setFitToHeight(true);
+		
+		ScrollPane right = new ScrollPane();
+		right.setFitToWidth(true);
+		right.setFitToHeight(true);
+		right.setHbarPolicy(ScrollBarPolicy.NEVER);
+		
 		VBox root = new VBox();
 		root.setPadding(new Insets(20));
 		
@@ -119,7 +187,13 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		CRUDArtifactGUIManager.drawForeignNameFields(instance.getConfig().getForeignFields(), instance.getConfig().getCoreType(), instance.getRepository(), foreign);
 		
 		root.getChildren().addAll(fields, foreign);
-		pane.getChildren().add(root);
+		left.setContent(root);
+		split.getItems().addAll(left, right);
+		pane.getChildren().add(split);
+		
+		chart = new VBox();
+		right.setContent(chart);
+		drawChart(chart, instance);
 	}
 	
 	private void drawFields(VBox target, InsightArtifact insight) {
@@ -249,4 +323,81 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		return list;
 	}
 	
+	private void drawChart(VBox container, InsightArtifact artifact) {
+		container.getChildren().clear();
+		if (artifact.getConfig().getFields() != null && !artifact.getConfig().getFields().isEmpty()) {
+			try {
+				ComplexContent input = artifact.getServiceInterface().getInputDefinition().newInstance();
+				Future<ServiceResult> run = EAIResourceRepository.getInstance().getServiceRunner().run(artifact, EAIResourceRepository.getInstance().newExecutionContext(SystemPrincipal.ROOT), input);
+				ServiceResult serviceResult = run.get();
+				if (serviceResult.getException() != null) {
+					throw serviceResult.getException();
+				}
+				final CategoryAxis xAxis = new CategoryAxis();
+		        final NumberAxis yAxis = new NumberAxis();
+		        final BarChart<String,Number> barChart = new BarChart<String,Number>(xAxis,yAxis);
+		        barChart.setTitle("Chart");
+		        barChart.setCategoryGap(10);
+		        barChart.setBarGap(2);
+		        xAxis.setLabel("Group");       
+		        yAxis.setLabel("Value");
+		        container.getChildren().add(barChart);
+		        Map<String, XYChart.Series<String, Number>> series = new LinkedHashMap<String, XYChart.Series<String, Number>>();
+		        List<String> keyFields = new ArrayList<String>();
+		        List<String> valueFields = new ArrayList<String>();
+		        for (InsightField field : artifact.getConfig().getFields()) {
+		        	if (field.getAggregate() == null || "group by".equals(field.getAggregate())) {
+		        		keyFields.add(field.getAlias() == null ? field.getKey() : field.getAlias());
+		        	}
+		        	else {
+		        		String valueField = field.getAlias() == null ? field.getKey() : field.getAlias();
+						String cleanedUpValueField = NamingConvention.LOWER_CAMEL_CASE.apply(NamingConvention.UNDERSCORE.apply(valueField));
+						valueFields.add(cleanedUpValueField);
+		        		Series<String, Number> serie = new XYChart.Series<String, Number>();
+		        		serie.setName(NamingConvention.UPPER_TEXT.apply(NamingConvention.UNDERSCORE.apply(valueField)));
+						series.put(cleanedUpValueField, serie);
+		        		barChart.getData().add(serie);
+		        	}
+		        }
+				List<Object> list = (List<Object>) serviceResult.getOutput().get("results");
+				if (list != null) {
+					for (int i = 0; i < list.size(); i++) {
+						Object object = list.get(i);
+						ComplexContent content = (ComplexContent) object;
+						if (content != null) {
+							String key = "";
+							// if there are no key fields, you are not grouping at all
+							if (keyFields.isEmpty()) {
+								key = "All";
+							}
+							else {
+								for (String keyField : keyFields) {
+									Object result = content.get(keyField);
+									if (result != null) {
+										if (!key.isEmpty()) {
+											key += ", ";
+										}
+										key += result;
+									}
+								}
+							}
+							if (!key.isEmpty()) {
+								for (String valueField : valueFields) {
+									Object result = content.get(valueField);
+									if (result instanceof Number) {
+										Data<String, Number> data = new XYChart.Data<String, Number>(key, (Number) result);
+										series.get(valueField).getData().add(data);
+										new CustomTooltip(key + " = " + result).install(data.getNode());
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			catch (Exception e) {
+				MainController.getInstance().notify(e);
+			}
+		}
+	}
 }
