@@ -192,6 +192,7 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		pane.getChildren().add(split);
 		
 		chart = new VBox();
+		chart.setPadding(new Insets(5));
 		right.setContent(chart);
 		drawChart(chart, instance);
 	}
@@ -328,6 +329,8 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		if (artifact.getConfig().getFields() != null && !artifact.getConfig().getFields().isEmpty()) {
 			try {
 				ComplexContent input = artifact.getServiceInterface().getInputDefinition().newInstance();
+				// TODO: make this configurable by the user, then you can use it to for example get a full export!
+				input.set("limit", 100);
 				Future<ServiceResult> run = EAIResourceRepository.getInstance().getServiceRunner().run(artifact, EAIResourceRepository.getInstance().newExecutionContext(SystemPrincipal.ROOT), input);
 				ServiceResult serviceResult = run.get();
 				if (serviceResult.getException() != null) {
