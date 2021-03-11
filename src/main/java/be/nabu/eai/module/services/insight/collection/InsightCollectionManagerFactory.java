@@ -148,6 +148,9 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 				VBox options = new VBox();
 				Map<String, CheckBox> boxes = new HashMap<String, CheckBox>();
 				
+				Label optionsLabel = new Label("Choose your data type");
+				optionsLabel.getStyleClass().add("p");
+				
 				databases.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<ComboItem>() {
 					@Override
 					public void changed(ObservableValue<? extends ComboItem> arg0, ComboItem arg1, ComboItem arg2) {
@@ -183,6 +186,7 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 								create.setDisable(true);
 							}
 							else {
+								options.getChildren().add(0, optionsLabel);
 								create.setDisable(false);
 							}
 						}
@@ -202,8 +206,15 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 					root.getChildren().add(noDatabase);
 				}
 				else {
-					root.getChildren().add(EAIDeveloperUtils.newHBox("Name", nameText));
-					root.getChildren().add(EAIDeveloperUtils.newHBox("Database", databases));
+					Label chooseDb = new Label("Choose Database");
+					chooseDb.getStyleClass().add("p");
+					root.getChildren().addAll(chooseDb, databases);
+//					root.getChildren().add(EAIDeveloperUtils.newHBox("Database", databases));
+					
+					Label chooseName = new Label("Pick a name for your insight");
+					chooseName.getStyleClass().add("p");
+					root.getChildren().addAll(chooseName, nameText);
+//					root.getChildren().add(EAIDeveloperUtils.newHBox("Name", nameText));
 				}
 				
 				ScrollPane scroll = new ScrollPane();
@@ -299,10 +310,9 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 			if (parentCollection != null) {
 				collection.setName(parentCollection.getName());
 			}
-			collection.setSmallIcon("insight.png");
+			collection.setSubType("insights");
 			collection.setMediumIcon("insight-medium.png");
 			collection.setLargeIcon("insight-large.png");
-			collection.setSubType("insights");
 			((RepositoryEntry) child).setCollection(collection);
 			((RepositoryEntry) child).saveCollection();
 		}
@@ -311,6 +321,16 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 	
 	private Entry getInsightEntry(RepositoryEntry application) throws IOException {
 		Entry child = EAIDeveloperUtils.mkdir(application, "insights");
+		if (!child.isCollection()) {
+			CollectionImpl collection = new CollectionImpl();
+			collection.setType("folder");
+			collection.setSmallIcon("insight.png");
+			collection.setMediumIcon("insight-medium.png");
+			collection.setLargeIcon("insight-large.png");
+			collection.setName("Insights");
+			((RepositoryEntry) child).setCollection(collection);
+			((RepositoryEntry) child).saveCollection();
+		}
 		return child;
 	}
 }

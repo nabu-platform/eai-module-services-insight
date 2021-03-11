@@ -54,6 +54,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 
 /**
@@ -345,6 +346,7 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		        xAxis.setLabel("Group");       
 		        yAxis.setLabel("Value");
 		        container.getChildren().add(barChart);
+		        VBox.setVgrow(barChart, Priority.SOMETIMES);
 		        Map<String, XYChart.Series<String, Number>> series = new LinkedHashMap<String, XYChart.Series<String, Number>>();
 		        List<String> keyFields = new ArrayList<String>();
 		        List<String> valueFields = new ArrayList<String>();

@@ -22,22 +22,26 @@ import be.nabu.libs.services.api.ServiceException;
 import be.nabu.libs.services.api.ServiceInstance;
 import be.nabu.libs.services.api.ServiceInterface;
 import be.nabu.libs.types.SimpleTypeWrapperFactory;
+import be.nabu.libs.types.TypeUtils;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.api.SimpleType;
 import be.nabu.libs.types.base.ComplexElementImpl;
+import be.nabu.libs.types.base.Scope;
 import be.nabu.libs.types.base.SimpleElementImpl;
 import be.nabu.libs.types.base.TypeBaseUtils;
 import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.types.java.BeanResolver;
-import be.nabu.libs.types.properties.AggregateProperty;
+import be.nabu.libs.types.properties.CalculationProperty;
 import be.nabu.libs.types.properties.CollectionNameProperty;
 import be.nabu.libs.types.properties.ForeignNameProperty;
 import be.nabu.libs.types.properties.MaxOccursProperty;
 import be.nabu.libs.types.properties.MinOccursProperty;
 import be.nabu.libs.types.properties.NameProperty;
+import be.nabu.libs.types.properties.RestrictProperty;
+import be.nabu.libs.types.properties.ScopeProperty;
 import be.nabu.libs.types.structure.DefinedStructure;
 import be.nabu.libs.types.structure.Structure;
 import nabu.services.jdbc.Services;
@@ -81,8 +85,10 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 				if (input == null) {
 					Structure input = new Structure();
 					input.setName("input");
-					input.add(new SimpleElementImpl<String>("connectionId", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(String.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0)));
-					input.add(new SimpleElementImpl<String>("transactionId", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(String.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0)));
+					input.add(new SimpleElementImpl<String>("connectionId", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(String.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0),
+							new ValueImpl<Scope>(ScopeProperty.getInstance(), Scope.PRIVATE)));
+					input.add(new SimpleElementImpl<String>("transactionId", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(String.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0),
+							new ValueImpl<Scope>(ScopeProperty.getInstance(), Scope.PRIVATE)));
 					input.add(new SimpleElementImpl<Integer>("limit", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(Integer.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0)));
 					input.add(new SimpleElementImpl<Long>("offset", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(Long.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0)));
 					input.add(new SimpleElementImpl<String>("orderBy", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(String.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0), new ValueImpl<Integer>(MaxOccursProperty.getInstance(), 0)));
@@ -206,6 +212,7 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 					null,
 					executionContext,
 					groupBy,
+					null,
 					null
 				);
 				
@@ -229,6 +236,20 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 			synchronized(this) {
 				if (result == null) {
 					DefinedStructure result = new DefinedStructure();
+					result.setSuperType(getConfig().getCoreType());
+					// we default restrict all fields! but we want the extension for further lookups
+					String restrict = null;
+					for (Element<?> child : TypeUtils.getAllChildren((ComplexType) getConfig().getCoreType())) {
+						if (restrict == null) {
+							restrict = "";
+						}
+						else {
+							restrict += ",";
+						}
+						restrict += child.getName();
+					}
+					result.setProperty(new ValueImpl<String>(RestrictProperty.getInstance(), restrict));
+					
 					buildStructure(result, this);
 					String id = getId() + ".results";
 					result.setId(id);
@@ -274,7 +295,7 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 				}
 				// if we have an aggregate that is not a group by, add it
 				if (aggregate != null && !"group by".equals(aggregate)) {
-					clone.setProperty(new ValueImpl<String>(AggregateProperty.getInstance(), aggregate));
+					clone.setProperty(new ValueImpl<String>(CalculationProperty.getInstance(), aggregate));
 				}
 				structure.add(clone);
 			}

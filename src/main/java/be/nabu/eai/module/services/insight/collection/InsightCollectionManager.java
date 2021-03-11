@@ -1,6 +1,7 @@
 package be.nabu.eai.module.services.insight.collection;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import be.nabu.eai.developer.api.CollectionManager;
@@ -32,7 +33,8 @@ public class InsightCollectionManager implements CollectionManager {
 		List<Button> buttons = new ArrayList<Button>();
 		buttons.add(EAICollectionUtils.newViewButton(entry));
 		buttons.add(EAICollectionUtils.newDeleteButton(entry, null));
-		return EAICollectionUtils.newSummaryTile(entry, "insight-large.png", buttons.toArray(new Button[buttons.size()]));
+		// we add the entrey itself as a service, that makes it more "standard" like the other artifacts, also for drag/drop etc
+		return EAICollectionUtils.newSummaryTile(entry, "insight-large.png", Arrays.asList(entry), buttons);
 	}
 	
 }
