@@ -213,6 +213,7 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 					executionContext,
 					groupBy,
 					null,
+					null,
 					null
 				);
 				
