@@ -152,7 +152,7 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 				pane.getChildren().clear();
 				display(instance, pane);
 			}
-		}, false);
+		}, false, null);
 		root.getChildren().add(filters);
 		VBox.setMargin(filters, new Insets(0, 0, 10, 0));
 		
