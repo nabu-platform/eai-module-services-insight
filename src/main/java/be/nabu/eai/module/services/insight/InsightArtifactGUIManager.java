@@ -15,6 +15,7 @@ import be.nabu.eai.developer.impl.CustomTooltip;
 import be.nabu.eai.developer.managers.base.BaseArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimpleProperty;
+import be.nabu.eai.module.services.crud.CRUDArtifact;
 import be.nabu.eai.module.services.crud.CRUDArtifactGUIManager;
 import be.nabu.eai.module.services.crud.CRUDArtifactGUIManager.Redrawer;
 import be.nabu.eai.module.services.crud.CRUDConfiguration.ForeignNameField;
@@ -38,6 +39,8 @@ import javafx.beans.value.ObservableValue;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
@@ -202,7 +205,7 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		VBox box = new VBox();
 		box.setFillWidth(true);
 		showProperties(instance, box, false);
-//		populateGeneral(instance, box);
+		populateGeneral(instance, box);
 		box.getStyleClass().add("configuration-pane");
 		box.getStyleClass().add("configuration-pane-basic");
 		// the default settings should be good enough?
@@ -220,6 +223,58 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		right.setContent(chart);
 		drawChart(chart, instance);
 	}
+	
+	// serious copy pasting from CRUD artifact gui manager...
+	private void populateGeneral(InsightArtifact instance, Pane general) {
+		VBox main = new VBox();
+		main.setFillWidth(true);
+		
+		// select the security context field
+		ComboBox<String> securityContextField = newFieldCombo(instance, true);
+		securityContextField.getSelectionModel().select(instance.getConfig().getSecurityContextField());
+		securityContextField.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {
+			@Override
+			public void changed(ObservableValue<? extends String> arg0, String arg1, String arg2) {
+				instance.getConfig().setSecurityContextField(arg2 == null || arg2.trim().isEmpty() ? null : arg2);
+				MainController.getInstance().setChanged();
+			}
+		});
+		HBox securityField = createField(securityContextField, "Security Context Field", "Configure the security context field for this type.");
+		HBox.setMargin(securityContextField, new Insets(0, 0, 0, 7));
+		HBox.setHgrow(securityContextField, Priority.ALWAYS);
+		main.getChildren().add(securityField);
+		
+		general.getChildren().add(main);
+		maximize(main);
+	}
+	private void maximize(Node node) {
+		AnchorPane.setBottomAnchor(node, 0d);
+		AnchorPane.setRightAnchor(node, 0d);
+		AnchorPane.setTopAnchor(node, 0d);
+		AnchorPane.setLeftAnchor(node, 0d);
+	}
+	private HBox createField(ComboBox<String> node, String title, String tooltip) {
+		HBox hbox = new HBox();
+		hbox.setPadding(new Insets(10, 0, 10, 0));
+		Label label = new Label(title + ":");
+		label.setPrefWidth(160);
+		label.setWrapText(true);
+		label.setAlignment(Pos.CENTER_LEFT);
+		label.setPadding(new Insets(4, 10, 0, 0));
+		HBox.setHgrow(label, Priority.SOMETIMES);
+		hbox.getChildren().addAll(label, node);
+		HBox.setHgrow(node, Priority.ALWAYS);
+		MainController.getInstance().attachTooltip(label, tooltip);
+		label.setStyle("-fx-text-fill: #666666");
+		return hbox;
+	}
+	private ComboBox<String> newFieldCombo(InsightArtifact instance, boolean includeForeignFields) {
+		ComboBox<String> fields = new ComboBox<String>();
+		fields.getItems().addAll(fields(instance, includeForeignFields));
+		fields.getItems().add(0, null);
+		return fields;
+	}
+	
 	
 	private void drawFields(VBox target, InsightArtifact insight) {
 		target.getChildren().clear();
