@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import be.nabu.eai.api.NamingConvention;
 import be.nabu.eai.developer.CollectionActionImpl;
@@ -15,6 +16,7 @@ import be.nabu.eai.developer.api.CollectionManagerFactory;
 import be.nabu.eai.developer.api.EntryAcceptor;
 import be.nabu.eai.developer.collection.ApplicationManager;
 import be.nabu.eai.developer.collection.EAICollectionUtils;
+import be.nabu.eai.developer.collection.ProjectManager;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.module.services.insight.InsightArtifact;
 import be.nabu.eai.module.services.insight.InsightArtifactManager;
@@ -84,7 +86,7 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 	public List<CollectionAction> getActionsFor(Entry entry) {
 		List<CollectionAction> actions = new ArrayList<CollectionAction>();
 		// if it is a valid application, we want to be able to add to it
-		if (MainController.getInstance().newCollectionManager(entry) instanceof ApplicationManager) {
+		if (MainController.getInstance().newCollectionManager(entry) instanceof ApplicationManager || MainController.getInstance().newCollectionManager(entry) instanceof ProjectManager) {
 			actions.add(new CollectionActionImpl(EAICollectionUtils.newActionTile("insight-large.png", "Add Insight", "Interpret the data you have collected."), build(entry), new EntryAcceptor() {
 				@Override
 				public boolean accept(Entry entry) {
@@ -146,7 +148,7 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 				// we want to be able to add multiple CRUD at once, we use checkboxes
 				// if you already have a CRUD with the type name, we assume you generated it properly and we don't offer it as a possibility anymore
 				VBox options = new VBox();
-				Map<String, CheckBox> boxes = new HashMap<String, CheckBox>();
+				Map<String, CheckBox> boxes = new TreeMap<String, CheckBox>();
 				
 				Label optionsLabel = new Label("Choose your data type");
 				optionsLabel.getStyleClass().add("p");
@@ -172,12 +174,17 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 												if (!alreadyTaken.contains(((DefinedType) type).getId())) {
 													CheckBox checkBox = new CheckBox(EAICollectionUtils.getPrettyName(type));
 													boxes.put(((DefinedType) type).getId(), checkBox);
-													options.getChildren().add(checkBox);
+//													options.getChildren().add(checkBox);
 												}
 											}
 										}
 									}
 								}
+							}
+							// the treemap will order the entries alphabetically
+							// that's why we use a second loop to actually add the checkboxes rather than doing it in the loop above
+							for (CheckBox checkBox : boxes.values()) {
+								options.getChildren().add(checkBox);
 							}
 							if (boxes.isEmpty()) {
 								Label label = new Label("There are no types available");
@@ -315,6 +322,7 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 			collection.setLargeIcon("insight-large.png");
 			((RepositoryEntry) child).setCollection(collection);
 			((RepositoryEntry) child).saveCollection();
+			EAIDeveloperUtils.updated(child.getId());
 		}
 		return child;
 	}
@@ -330,6 +338,7 @@ public class InsightCollectionManagerFactory implements CollectionManagerFactory
 			collection.setName("Insights");
 			((RepositoryEntry) child).setCollection(collection);
 			((RepositoryEntry) child).saveCollection();
+			EAIDeveloperUtils.updated(child.getId());
 		}
 		return child;
 	}

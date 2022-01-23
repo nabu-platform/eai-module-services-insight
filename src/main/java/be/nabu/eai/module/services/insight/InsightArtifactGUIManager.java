@@ -44,6 +44,7 @@ import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.chart.XYChart.Data;
 import javafx.scene.chart.XYChart.Series;
+import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -51,6 +52,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TitledPane;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -122,6 +124,11 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 	}
 
 	@Override
+	protected List<String> getBlacklistedProperties() {
+		return Arrays.asList("securityContextField", "filters", "foreignFields", "coreType", "views", "fields");
+	}
+	
+	@Override
 	protected void display(InsightArtifact instance, Pane pane) {
 		this.instance = instance;
 		SplitPane split = new SplitPane();
@@ -188,6 +195,22 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 		CRUDArtifactGUIManager.drawForeignNameFields(instance.getConfig().getForeignFields(), instance.getConfig().getCoreType(), instance.getRepository(), foreign);
 		
 		root.getChildren().addAll(fields, foreign);
+		
+		// add the advanced for additional settings
+		Accordion accordion = new Accordion();
+		
+		VBox box = new VBox();
+		box.setFillWidth(true);
+		showProperties(instance, box, false);
+//		populateGeneral(instance, box);
+		box.getStyleClass().add("configuration-pane");
+		box.getStyleClass().add("configuration-pane-basic");
+		// the default settings should be good enough?
+		TitledPane general = new TitledPane("Advanced", box);
+		accordion.getPanes().add(general);
+		root.getChildren().add(accordion);
+		
+		
 		left.setContent(root);
 		split.getItems().addAll(left, right);
 		pane.getChildren().add(split);
@@ -238,7 +261,7 @@ public class InsightArtifactGUIManager extends BaseJAXBGUIManager<InsightConfigu
 			// especially postgres has a number of additional aggregates that can be nice to use but definitely not portable
 			// STDEV (mssql), stddev (postgres, oracle) is also rather widely available, stddev in postgres is an alias for STDDEV_SAMP which also exists in h2
 			aggregate.getItems().addAll("avg", "count", "group by", "max", "min", "sum");
-			aggregate.getSelectionModel().select(field.getAggregate());
+			aggregate.getSelectionModel().select(field.getAggregate() == null ? "group by" : field.getAggregate());
 			row.getChildren().add(aggregate);
 			
 			aggregate.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<String>() {

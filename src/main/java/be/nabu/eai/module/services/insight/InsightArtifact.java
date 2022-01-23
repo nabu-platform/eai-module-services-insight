@@ -1,7 +1,12 @@
 package be.nabu.eai.module.services.insight;
 
+import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import be.nabu.eai.api.NamingConvention;
@@ -9,9 +14,17 @@ import be.nabu.eai.module.services.crud.CRUDArtifactManager;
 import be.nabu.eai.module.services.crud.CRUDFilter;
 import be.nabu.eai.module.services.crud.CRUDService;
 import be.nabu.eai.module.services.crud.Page;
+import be.nabu.eai.module.web.application.WebApplication;
+import be.nabu.eai.module.web.application.WebFragment;
+import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.repository.api.Repository;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
 import be.nabu.eai.repository.util.Filter;
+import be.nabu.libs.authentication.api.Permission;
+import be.nabu.libs.events.api.EventSubscription;
+import be.nabu.libs.http.api.HTTPRequest;
+import be.nabu.libs.http.api.HTTPResponse;
+import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.property.ValueUtils;
 import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.api.ResourceContainer;
@@ -28,6 +41,7 @@ import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.api.SimpleType;
+import be.nabu.libs.types.api.Type;
 import be.nabu.libs.types.base.ComplexElementImpl;
 import be.nabu.libs.types.base.Scope;
 import be.nabu.libs.types.base.SimpleElementImpl;
@@ -47,7 +61,7 @@ import be.nabu.libs.types.structure.Structure;
 import nabu.services.jdbc.Services;
 import nabu.services.jdbc.Services.JDBCSelectResult;
 
-public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implements DefinedService {
+public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implements DefinedService, WebFragment, RESTFragment {
 
 	private DefinedStructure result;
 	private Structure foreign;
@@ -79,7 +93,7 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private Structure getInput() {
+	private Structure getDefinedInput() {
 		if (input == null) {
 			synchronized(this) {
 				if (input == null) {
@@ -134,7 +148,7 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 		return input;
 	}
 	
-	private Structure getOutput() {
+	private Structure getDefinedOutput() {
 		if (output == null) {
 			synchronized(this) {
 				if (output == null) {
@@ -155,12 +169,12 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 		return new ServiceInterface() {
 			@Override
 			public ComplexType getInputDefinition() {
-				return getInput();
+				return getDefinedInput();
 			}
 
 			@Override
 			public ComplexType getOutputDefinition() {
-				return getOutput();
+				return getDefinedOutput();
 			}
 			@Override
 			public ServiceInterface getParent() {
@@ -311,6 +325,206 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 		else {
 			return TypeBaseUtils.clone(element, structure);
 		}
+	}
+
+	private Map<String, EventSubscription<?, ?>> subscriptions = new HashMap<String, EventSubscription<?, ?>>();
+	
+	@Override
+	public String getPath() {
+		String path = getConfig().getBasePath() == null ? "" : getConfig().getBasePath();
+		if (!path.isEmpty() && !path.endsWith("/")) { 
+			path += "/";
+		}
+		if (!path.startsWith("/")) {
+			path = "/" + path;
+		}
+		if (hasSecurityContextFilter()) {
+			path += "{contextId}/";
+		}
+		path += getName();
+		return path;
+	}
+	
+	private String getName() {
+		String name = getConfig().getName();
+		// we base the name off the id rather than the core type, you can have multiple insights per type
+		if (name == null || name.trim().isEmpty()) {
+			name = getId().replaceAll("^.*\\.([^.]+)$", "$1");
+		}
+		return name;
+	}
+	
+	public boolean hasSecurityContextFilter() {
+		boolean hasParent = false;
+		if (getConfig().getFilters() != null && getConfig().getSecurityContextField() != null) {
+			for (CRUDFilter filter : getConfig().getFilters()) {
+				if (filter != null && filter.getKey() != null && getConfig().getSecurityContextField().equals(filter.getKey()) && "=".equals(filter.getOperator())) {
+					hasParent = true;
+					break;
+				}
+			}
+		}
+		return hasParent;
+	}
+
+	@Override
+	public String getMethod() {
+		return "GET";
+	}
+
+	@Override
+	public List<String> getConsumes() {
+		return Arrays.asList("application/json", "application/xml");
+	}
+
+	@Override
+	public List<String> getProduces() {
+		return Arrays.asList("application/json", "application/xml");
+	}
+
+	// there is no input, it is a GET service
+	@Override
+	public Type getInput() {
+		return null;
+	}
+
+	@Override
+	public Type getOutput() {
+		return getDefinedOutput();
+	}
+
+	protected Element<?> getSecurityContext() {
+		if (getConfig().getSecurityContextField() != null) {
+			Element<?> element = ((ComplexType) getConfig().getCoreType()).get(getConfig().getSecurityContextField());
+			// could be imported?
+			if (element == null && result != null) {
+				element = result.get(getConfig().getSecurityContextField());
+			}
+			return element;
+		}
+		return null;
+	}
+	
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Override
+	public List<Element<?>> getQueryParameters() {
+		List<Element<?>> parameters = new ArrayList<Element<?>>();
+		Structure input = new Structure();
+		parameters.add(new SimpleElementImpl<Integer>("limit", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(Integer.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0)));
+		parameters.add(new SimpleElementImpl<Long>("offset", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(Long.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0)));
+		parameters.add(new SimpleElementImpl<String>("orderBy", SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(String.class), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0), new ValueImpl<Integer>(MaxOccursProperty.getInstance(), 0)));
+		if (getConfig().getFilters() != null) {
+			Element<?> parent = getSecurityContext();
+			List<String> alreadyDefined = new ArrayList<String>();
+			for (CRUDFilter filter : getConfig().getFilters()) {
+				if (filter != null && filter.getKey() != null && filter.isInput()) {
+					// if we have a list service which has a parent id filter, we put it in the path, not in the query
+					if (parent != null && parent.getName().equals(filter.getKey())) {
+						continue;
+					}
+					// it might be an extension!
+					Element<?> element = result.get(filter.getKey());
+					if (element == null) {
+						element = ((ComplexType) getConfig().getCoreType()).get(filter.getKey());
+					}
+					// you might be referencing an item that no longer exists
+					if (element == null) {
+						continue;
+					}
+					SimpleElementImpl childElement = new SimpleElementImpl(filter.getAlias() == null ? filter.getKey() : filter.getAlias(), (SimpleType<?>) element.getType(), input, new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0));
+					// we can reuse the same filter with the same name for multiple matches, we however only want to expose it once
+					if (alreadyDefined.contains(childElement.getName())) {
+						continue;
+					}
+					else {
+						alreadyDefined.add(childElement.getName());
+					}
+					// only for some filters do we support the list entries
+					if ("=".equals(filter.getOperator()) || "<>".equals(filter.getOperator())) {
+						childElement.setProperty(new ValueImpl<Integer>(MaxOccursProperty.getInstance(), 0));
+					}
+					parameters.add(childElement);
+				}
+			}
+		}
+		return parameters;
+	}
+	
+	@Override
+	public List<Permission> getPermissions(WebApplication artifact, String path) {
+		List<Permission> permissions = new ArrayList<Permission>();
+		permissions.add(new Permission() {
+			@Override
+			public String getContext() {
+				return null;
+			}
+			@Override
+			public String getAction() {
+				return "insight." + getName();
+			}
+		});
+		return permissions;
+	}
+
+	@Override
+	public List<Element<?>> getHeaderParameters() {
+		return new ArrayList<Element<?>>();
+	}
+
+	// TODO: add support for security context?
+	@Override
+	public List<Element<?>> getPathParameters() {
+		return new ArrayList<Element<?>>();
+	}
+
+	private String getKey(WebApplication artifact, String path) {
+		return artifact.getId() + ":" + path;
+	}
+	
+	@Override
+	public void start(WebApplication application, String path) throws IOException {
+		String key = getKey(application, path);
+		if (subscriptions.containsKey(key)) {
+			stop(application, path);
+		}
+		String restPath = application.getServerPath();
+		if (path != null && !path.isEmpty() && !path.equals("/")) {
+			if (!restPath.endsWith("/")) {
+				restPath += "/";
+			}
+			restPath += path.replaceFirst("^[/]+", "");
+		}
+		String parentPath = restPath;
+		if (getConfig().getBasePath() != null) {
+			if (!restPath.endsWith("/")) {
+				restPath += "/";
+			}
+			restPath += getConfig().getBasePath().replaceFirst("^[/]+", "");
+		}
+		synchronized(subscriptions) {
+			InsightListener listener = new InsightListener(application, this, parentPath, getPath(), Charset.forName("UTF-8"));
+			EventSubscription<HTTPRequest, HTTPResponse> subscription = application.getDispatcher().subscribe(HTTPRequest.class, listener);
+			subscription.filter(HTTPServerUtils.limitToPath(restPath));
+			subscriptions.put(key, subscription);
+		}		
+	}
+
+	@Override
+	public void stop(WebApplication artifact, String path) {
+		String key = getKey(artifact, path);
+		if (subscriptions.containsKey(key)) {
+			synchronized(subscriptions) {
+				if (subscriptions.containsKey(key)) {
+					subscriptions.get(key).unsubscribe();
+					subscriptions.remove(key);
+				}
+			}
+		}
+	}
+
+	@Override
+	public boolean isStarted(WebApplication artifact, String path) {
+		return subscriptions.containsKey(getKey(artifact, path));
 	}
 
 }
