@@ -427,6 +427,11 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 					if (element == null) {
 						element = ((ComplexType) getConfig().getCoreType()).get(filter.getKey());
 					}
+					// import?
+					// if they do not appear in the result set, they can not be used...?
+//					if (element == null) {
+//						element = getForeign().get(filter.getKey());
+//					}
 					// you might be referencing an item that no longer exists
 					if (element == null) {
 						continue;
