@@ -104,6 +104,7 @@ public class InsightListener implements EventHandler<HTTPRequest, HTTPResponse> 
 				WebApplicationUtils.checkRole(application, token, artifact.getConfig().getRole());
 			}
 			
+//			HTTPResponse checkRateLimits = WebApplicationUtils.checkRateLimits(application, token, device, artifact.getConfig().getListPermission() == null ? service.getId() : artifact.getConfig().getListPermission(), null, request);
 			HTTPResponse checkRateLimits = WebApplicationUtils.checkRateLimits(application, token, device, artifact.getId(), null, request);
 			if (checkRateLimits != null) {
 				return checkRateLimits;

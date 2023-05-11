@@ -533,4 +533,8 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 		return subscriptions.containsKey(getKey(artifact, path));
 	}
 
+	@Override
+	public String getDescription() {
+		return null;
+	}
 }
