@@ -253,7 +253,7 @@ public class InsightArtifact extends JAXBArtifact<InsightConfiguration> implemen
 				ComplexContent output = getServiceInterface().getOutputDefinition().newInstance();
 				output.set("results", selectFiltered.getResults());
 				if (selectFiltered.getTotalRowCount() != null) {
-					output.set("page", Page.build(selectFiltered.getTotalRowCount(), input == null ? null : (Long) input.get("offset"), input == null ? null : (Integer) input.get("limit")));
+					output.set("page", Page.build(selectFiltered.getTotalRowCount(), input == null ? null : (Long) input.get("offset"), input == null ? null : (Integer) input.get("limit"), true));
 				}
 				return output;
 			}
